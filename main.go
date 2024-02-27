@@ -12,6 +12,7 @@ import (
 	th "github.com/mymmrac/telego/telegohandler"
 
 	cl "bot/pkg/client"
+	"bot/pkg/ui"
 )
 
 var(
@@ -50,13 +51,19 @@ func closer(){
 	os.Exit(0)
 }
 
+func load(){
+	log.Println("Loading static data...")
+
+	go ui.Loader(&waitGroup)
+
+	waitGroup.Wait()
+}
+
 func runBot(){
-	if len(os.Args) < 2{
-		log.Fatal("A valid bot token should be included in command line arguments.")
-	}
+	log.Print("Starting the bot...")
 
 	var err error
-	bot, err = tg.NewBot(os.Args[1], tg.WithDefaultDebugLogger())
+	bot, err = tg.NewBot(os.Args[1], tg.WithDefaultLogger(false, true))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -82,14 +89,20 @@ func runBot(){
 	})
 
 	bothandler.HandleMessage(cl.MessageHandler, th.AnyMessage())
+	bothandler.HandleInlineQuery(cl.QueryHandler, th.AnyCallbackQuery())
 
 	bothandler.Start()
 }
 
 func main() {
+	if len(os.Args) < 2{
+		log.Fatal("A valid bot token should be included in command line arguments.")
+	}
+
 	shutdown = make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 	go closer()
-
+	
+	load()
 	runBot()
-}
+} 

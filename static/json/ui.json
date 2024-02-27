@@ -1,0 +1,17 @@
+{
+    "main": {
+        "name": "main",
+        "rows": [
+            [
+                {
+                    "label": "foo",
+                    "data": "foo"
+                },
+                {
+                    "label": "bar",
+                    "data": "bar"
+                }
+            ]
+        ]
+    }
+}

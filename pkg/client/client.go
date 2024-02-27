@@ -11,6 +11,10 @@ func MessageHandler(bot *tg.Bot, message tg.Message){
 
 }
 
+func QueryHandler(bot *tg.Bot, query tg.InlineQuery){
+
+}
+
 func DeleteMessage(bot *tg.Bot, message *tg.Message) {
 	deleteparams := &tg.DeleteMessageParams{
 		ChatID:    tu.ID(message.Chat.ID),
