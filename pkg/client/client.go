@@ -1,19 +1,45 @@
 package client
 
 import (
+	st "bot/pkg/storage"
+	ctx "context"
 	"log"
 
 	tg "github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
-func MessageHandler(bot *tg.Bot, message tg.Message){
-
+// The following types represent the database tables.
+// Allowed field types - int64 or string
+// The "id" field is always a primary key for all tables.
+// Нужно еще позже добавить метатэги для того, чтобы указывать параметры полей... (Или вообще для их названий)
+type User struct{
+	Id int64
+	Name string
+	Data string
 }
 
-func QueryHandler(bot *tg.Bot, query tg.InlineQuery){
+func Load() error{
+	err := st.TouchTable(User{})
+	if err != nil{
+		return err
+	}
 
+	err = st.Insert(User{100, "Gleb", "Gleb"})
+	if err != nil{
+		return err
+	}
+
+	return nil
 }
+
+func MessageHandler(context ctx.Context, bot *tg.Bot, message tg.Message){
+	
+}
+
+func QueryHandler(context ctx.Context, bot *tg.Bot, query tg.InlineQuery){
+
+}	
 
 func DeleteMessage(bot *tg.Bot, message *tg.Message) {
 	deleteparams := &tg.DeleteMessageParams{

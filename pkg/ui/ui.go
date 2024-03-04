@@ -3,9 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"os"
-	"sync"
 
 	tg "github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -71,33 +69,40 @@ func (menu Menu) Build() *tg.InlineKeyboardMarkup{
 // Global menu map
 var Menus map[string]*Menu
 
-// Worker that loads static ui data from /static/json/ui.json
-func Loader(wg *sync.WaitGroup){
-	(*wg).Add(1)
+// Function that loads static ui data from /static/json/ui.json
+func Load() error{
+	path := "./static/json/ui.json"
+	var file *os.File
 
-	file, err := os.Open("./static/json/ui.json")
-	if err != nil{
-		log.Fatal(err)
+	// create .json file if not exists
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		file, err = os.Create(path)
+		if err != nil {
+			return err
+		}
+	}else{
+		file, err = os.Open(path)
+		if err != nil{
+			return err
+		}
 	}
 
 	bytes, err := io.ReadAll(file)
 	if err != nil{
-		log.Fatal(err)
+		return err
 	}
 
 	err = file.Close()
 	if err != nil{
-		log.Fatal(err)
+		return err
 	}
 
 	err = json.Unmarshal(bytes, &Menus)
 	if err != nil{
-		log.Fatal(err)
+		return err
 	}
 
-	log.Println("UI data loaded sucessfuly.")
-
-	(*wg).Done()
+	return nil
 }
 
 

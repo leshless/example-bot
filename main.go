@@ -1,25 +1,25 @@
 package main
 
 import (
+	cl "bot/pkg/client"
+	st "bot/pkg/storage"
+	"bot/pkg/ui"
+
+	ctx "context"
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
 	tg "github.com/mymmrac/telego"
 	th "github.com/mymmrac/telego/telegohandler"
-
-	cl "bot/pkg/client"
-	"bot/pkg/ui"
 )
 
 var(
 	bot *tg.Bot
 	bothandler *th.BotHandler
-	shutdown chan os.Signal
-	waitGroup sync.WaitGroup
+	shutdown ctx.Context
 )
 
 const(
@@ -28,35 +28,48 @@ const(
 )
 
 func closer(){
-	<-shutdown
+	// listening to system call to terminate work
+	<- shutdown.Done()
 	
 	log.Println("Graceful shutdown initiated. Stopping bot long polling...")
 	bot.StopLongPolling()
 	bothandler.Stop()
 
 	log.Println("Waiting for all active workers to finish...")
-	shutdownDone := make(chan struct{}, 1)
-	go func(){
-		waitGroup.Wait()
-		shutdownDone <- struct{}{}
-	}()
 
-	select{
-	case <- shutdownDone:
-	case <- time.After(GRACEFUL_SHUTDOWN_TIME):
-		log.Println("The shutdown takes too long. Some workers may be stuck. Force termination...")
-	}
+	//
 
 	log.Println("Graceful shutdown comlete.")
+
+	st.Close()
+
 	os.Exit(0)
 }
 
 func load(){
 	log.Println("Loading static data...")
+	
+	err := ui.Load()
+	if err != nil{
+		log.Fatal(err)
+	}
+	log.Println("UI data loaded sucessfuly.")
 
-	go ui.Loader(&waitGroup)
+	log.Println("Initializing database connection...")
+	err = st.Init()
+	if err != nil{
+		log.Fatal(err)
+	}
+	log.Println("DB connected sucessfuly.")
 
-	waitGroup.Wait()
+	log.Println("Loading client resources...")
+	err = cl.Load()
+	if err != nil{
+		log.Fatal(err)
+	}
+
+	log.Println("Resources loaded sucessfuly.")
+	//
 }
 
 func runBot(){
@@ -79,19 +92,26 @@ func runBot(){
 	}
 	
 	bothandler.Use(func(bot *tg.Bot, update tg.Update, next th.Handler) {
-		if update.Message != nil && time.Since(time.Unix(0, update.Message.Date)) > OMMIT_UPDATE_TIME{
-			log.Println("Incoming update ommited: the valid time to handle has exceeded.")
-		}
+		// // wrapper
+		// done := make(chan struct{}, 1)
+		// go func(){
+		// 	next(bot, update)
+		// 	done <- struct{}{}
+		// }()
 
-		waitGroup.Add(1)
+		// select{
+		// case <- done:
+		// 	// everything is fine
+		// case <- context.Done():
+		// 	// imediately stop work and perform some auxilary purge
+		// }
+		
 		next(bot, update)
-		waitGroup.Done()
 	})
 
-	bothandler.HandleMessage(cl.MessageHandler, th.AnyMessage())
-	bothandler.HandleInlineQuery(cl.QueryHandler, th.AnyCallbackQuery())
 
 	bothandler.Start()
+	log.Print("Bot is ")
 }
 
 func main() {
@@ -99,8 +119,7 @@ func main() {
 		log.Fatal("A valid bot token should be included in command line arguments.")
 	}
 
-	shutdown = make(chan os.Signal, 1)
-	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
+	shutdown, _ = signal.NotifyContext(ctx.Background(), syscall.SIGINT, syscall.SIGTERM)
 	go closer()
 	
 	load()
