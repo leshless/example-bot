@@ -4,6 +4,7 @@ import (
 	cl "bot/pkg/client"
 	st "bot/pkg/storage"
 	"bot/pkg/ui"
+	"sync"
 
 	ctx "context"
 	"log"
@@ -16,15 +17,18 @@ import (
 	th "github.com/mymmrac/telego/telegohandler"
 )
 
+// ПЕРЕПИСАТЬ ВСЕ НА КОНТЕКСТАХ!!
+
 var(
 	bot *tg.Bot
 	bothandler *th.BotHandler
 	shutdown ctx.Context
+	waitgroup sync.WaitGroup
 )
 
 const(
 	GRACEFUL_SHUTDOWN_TIME = 10 * time.Second
-	OMMIT_UPDATE_TIME = 10 * time.Second
+	OMIT_UPDATE_TIME = 10 * time.Second
 )
 
 func closer(){
@@ -37,11 +41,24 @@ func closer(){
 
 	log.Println("Waiting for all active workers to finish...")
 
-	//
+	done := make(chan struct{}, 1)
+	go func(){
+		waitgroup.Wait()
+		done <- struct{}{}
+	}()
+
+	select{
+	case <-done:
+		log.Println("All workers terminated successfully.")
+	case <-time.After(GRACEFUL_SHUTDOWN_TIME):
+		log.Println("Seems that shutdown operation takes too much time. Force termination...")
+	}
+
+	log.Println("Closing the database connection...")
+	st.Close()
 
 	log.Println("Graceful shutdown comlete.")
 
-	st.Close()
 
 	os.Exit(0)
 }
@@ -92,26 +109,26 @@ func runBot(){
 	}
 	
 	bothandler.Use(func(bot *tg.Bot, update tg.Update, next th.Handler) {
-		// // wrapper
-		// done := make(chan struct{}, 1)
-		// go func(){
-		// 	next(bot, update)
-		// 	done <- struct{}{}
-		// }()
+		// Check if update is not too old to be processed.
+		if update.Message != nil{
+			updatetime := time.Unix(update.Message.Date, 0)
+			if time.Since(updatetime) > OMIT_UPDATE_TIME{
+				log.Println("Incoming update omitted: a valid response time has elapsed.")
+				return
+			}
+		}
 
-		// select{
-		// case <- done:
-		// 	// everything is fine
-		// case <- context.Done():
-		// 	// imediately stop work and perform some auxilary purge
-		// }
-		
+		waitgroup.Add(1)
 		next(bot, update)
+		waitgroup.Done()
 	})
 
+	bothandler.HandleMessage(cl.MessageHandler, th.AnyMessage())
+	bothandler.HandleMessage(cl.CommandHandler, th.AnyCommand())
+	bothandler.HandleInlineQuery(cl.QueryHandler, th.AnyInlineQuery())
 
+	log.Print("Bot is active.")
 	bothandler.Start()
-	log.Print("Bot is ")
 }
 
 func main() {

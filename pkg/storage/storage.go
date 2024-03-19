@@ -10,13 +10,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-/*
-Короче, краткое описание того, что будет происходить в этом модуле.
-Пусть у нас есть какие-то внешние типы-структуры. Тогда их названия - названия таблиц, названия их полей - колонки таблиц.
-На запуске мы даем модулю потрогать все эти структуры и создаем таблички под них, если до этого таковых не было.
-А потом, при необходимости обратиться к таблице, все будет происходить по вышеописанным правилам.
-Главное это все научиться делать через reflect, и вот это уже нетривиальная задача.
-*/
+// ПЕРЕПИСАТЬ ВСЕ НА ТРАНЗАКЦИЯХ!!
+
 
 var db *sql.DB
 
@@ -61,6 +56,32 @@ func getBindings(s any) ([]string, []any, error){
 	return columns, values, nil
 }
 
+// Get list of pointers to struct fields.
+func getPointers(s any) ([]any, error) {
+	ptr := refl.ValueOf(s)
+	if ptr.Kind() != refl.Pointer{
+		return nil, storageError{"the kind of input interface but be a pointer to a struct."}
+	}
+
+	val := ptr.Elem()
+	if val.Kind() != refl.Struct{
+		return nil, storageError{"the kind of input interface but be a pointer to a struct."}
+	}
+
+	pointers := make([]any, val.NumField())
+	
+	if refl.TypeOf(val).Kind() != refl.Struct{
+		return nil, storageError{"the kind of input interface but be a struct and represent the specific database table columns."}
+	}
+
+    for i := 0; i < val.NumField(); i++ {
+        field := val.Field(i).Addr().Interface()
+        pointers[i] = &field
+    }
+
+    return pointers, nil
+}
+
 // Function that creates the table for specific struct type. 
 // Should be only ran initially, once for each type that will interact with this package functions later.
 func TouchTable(s any) error{
@@ -92,8 +113,24 @@ func TouchTable(s any) error{
 	return err
 }
 
-// Function representing the sqlite INSERT query.
-func Insert(s any) error{
+// Parametrized function, that performs the sqlite UPDATE query.
+func Update[T any](id int64, s T) error{
+	table := getName(s) 
+	
+	columns, values, err := getBindings(s)
+	if err != nil{
+		return err
+	}
+	questionMarks := strings.Join(strings.Split(strings.Repeat("?", len(columns)), ""), ", ")
+
+	query := fmt.Sprintf("UPDATE %v (%v) VALUES (%v)", table, strings.Join(columns, ", "), questionMarks)
+
+	_, err = db.Query(query, values...)
+	return err
+}
+
+// Parametrized function, that performs the sqlite INSERT query.
+func Insert[T any](s T) error{
 	table := getName(s) 
 	
 	columns, values, err := getBindings(s)
@@ -106,6 +143,61 @@ func Insert(s any) error{
 
 	_, err = db.Query(query, values...)
 	return err
+}
+
+// Parametrized function, that performs the sqlite SELECT query and returns struct of type T.
+func Select[T any](id int64) (T, error){
+	var s T
+
+	table := getName(s) 
+	pointers, err := getPointers(&s)
+	if err != nil{
+		return s, err
+	}
+
+	query := fmt.Sprintf("SELECT * FROM %v WHERE Id = ?", table)
+	rows, err := db.Query(query, id)
+	if err != nil{
+		return s, err
+	}
+
+	if !rows.Next(){
+		return s, sql.ErrNoRows
+	}
+
+	err = rows.Scan(pointers...)
+	return s, err
+}
+
+// Parametrized function, that performs the sqlite SELECT query for the whole table.
+func SelectAll[T any]() ([]T, error){
+	var s T
+	var ss []T
+
+	table := getName(s) 
+
+	query := fmt.Sprintf("SELECT * FROM %v", table)
+	rows, err := db.Query(query)
+	if err != nil{
+		return ss, err
+	}
+
+	for rows.Next(){
+		var s T
+		pointers, err := getPointers(&s)
+		if err != nil{
+			return ss, err
+		}
+
+		err = rows.Scan(pointers...)
+		if err != nil{
+			return ss, err
+		}
+
+		ss = append(ss, s)
+	}
+
+	return ss, err
 }
 
 // Function that executes initial connection to the database.

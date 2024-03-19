@@ -50,7 +50,7 @@ func (menu *Menu) AddRow(row Row){
 	menu.Rows = append(menu.Rows, row)
 }
 
-// Build the coresponding menu into telego.InlineKeyboardMarkup object.
+// Build the abstract menu into telego.InlineKeyboardMarkup object.
 func (menu Menu) Build() *tg.InlineKeyboardMarkup{
 	inlineRows := [][]tg.InlineKeyboardButton{}
 	
