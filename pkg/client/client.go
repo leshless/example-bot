@@ -3,6 +3,8 @@ package client
 import (
 	st "bot/pkg/storage"
 	ui "bot/pkg/ui"
+	"fmt"
+	"log"
 
 	tg "github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -37,8 +39,25 @@ func CommandHandler(bot *tg.Bot, message tg.Message){
 }
 
 func MessageHandler(bot *tg.Bot, message tg.Message){
-	SendMessage(bot, "HELLO WORLD!", message.From.ID)
+	id := message.From.ID
+	
+	user := User{
+		id,
+		"JOHN DOE",
+		"VERY INTELEGENT AND SMART GUY",
+	}
 
+	err := st.Insert(user)
+	if err != nil{
+		log.Println(err)
+	}
+
+	user, err = st.Select[User](id)
+	if err != nil{
+		log.Println(err)
+	}else{
+		SendMessage(bot, fmt.Sprintf("%v", user), id)
+	}
 }
 
 func QueryHandler(bot *tg.Bot, query tg.InlineQuery){

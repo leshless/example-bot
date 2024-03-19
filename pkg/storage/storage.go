@@ -114,20 +114,20 @@ func TouchTable(s any) error{
 }
 
 // Parametrized function, that performs the sqlite UPDATE query.
-func Update[T any](id int64, s T) error{
-	table := getName(s) 
+// func Update[T any](id int64, s T) error{
+// 	table := getName(s) 
 	
-	columns, values, err := getBindings(s)
-	if err != nil{
-		return err
-	}
-	questionMarks := strings.Join(strings.Split(strings.Repeat("?", len(columns)), ""), ", ")
+// 	columns, values, err := getBindings(s)
+// 	if err != nil{
+// 		return err
+// 	}
+// 	questionMarks := strings.Join(strings.Split(strings.Repeat("?", len(columns)), ""), ", ")
 
-	query := fmt.Sprintf("UPDATE %v (%v) VALUES (%v)", table, strings.Join(columns, ", "), questionMarks)
+// 	query := fmt.Sprintf("UPDATE %v (%v) VALUES (%v)", table, strings.Join(columns, ", "), questionMarks)
 
-	_, err = db.Query(query, values...)
-	return err
-}
+// 	_, err = db.Query(query, values...)
+// 	return err
+// }
 
 // Parametrized function, that performs the sqlite INSERT query.
 func Insert[T any](s T) error{
@@ -140,8 +140,10 @@ func Insert[T any](s T) error{
 	questionMarks := strings.Join(strings.Split(strings.Repeat("?", len(columns)), ""), ", ")
 
 	query := fmt.Sprintf("INSERT INTO %v (%v) VALUES (%v)", table, strings.Join(columns, ", "), questionMarks)
+	fmt.Println(query)
+	fmt.Println(values...)
 
-	_, err = db.Query(query, values...)
+	_, err = db.Exec(query, values...)
 	return err
 }
 
@@ -150,10 +152,17 @@ func Select[T any](id int64) (T, error){
 	var s T
 
 	table := getName(s) 
-	pointers, err := getPointers(&s)
-	if err != nil{
-		return s, err
+
+	val := refl.ValueOf(s)
+	if val.Kind() != refl.Struct{
+		return s, storageError{"the kind of interface must be a struct."}
 	}
+
+	pointers := make([]any, val.NumField())
+    for i := 0; i < val.NumField(); i++ {
+        field := val.Field(i).Addr().Interface()
+        pointers[i] = &field
+    }
 
 	query := fmt.Sprintf("SELECT * FROM %v WHERE Id = ?", table)
 	rows, err := db.Query(query, id)
