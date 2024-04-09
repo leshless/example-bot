@@ -17,8 +17,6 @@ import (
 	th "github.com/mymmrac/telego/telegohandler"
 )
 
-// ПЕРЕПИСАТЬ ВСЕ НА КОНТЕКСТАХ!!
-
 var(
 	bot *tg.Bot
 	bothandler *th.BotHandler
@@ -98,6 +96,8 @@ func runBot(){
 		log.Fatal(err)
 	}
 
+	cl.SetBot(bot)
+
 	updates, err := bot.UpdatesViaLongPolling(nil)
 	if err != nil {
 		log.Fatal(err)
@@ -125,7 +125,7 @@ func runBot(){
 
 	bothandler.HandleMessage(cl.MessageHandler, th.AnyMessage())
 	bothandler.HandleMessage(cl.CommandHandler, th.AnyCommand())
-	bothandler.HandleInlineQuery(cl.QueryHandler, th.AnyInlineQuery())
+	bothandler.HandleCallbackQuery(cl.QueryHandler, th.AnyCallbackQuery())
 
 	log.Print("Bot is active.")
 	bothandler.Start()

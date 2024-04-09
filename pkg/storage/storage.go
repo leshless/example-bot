@@ -56,30 +56,24 @@ func getBindings(s any) ([]string, []any, error){
 	return columns, values, nil
 }
 
-// Get list of pointers to struct fields.
+// Get list of pointers to struct fields. Recieves a pointer to a struct!
 func getPointers(s any) ([]any, error) {
 	ptr := refl.ValueOf(s)
 	if ptr.Kind() != refl.Pointer{
-		return nil, storageError{"the kind of input interface but be a pointer to a struct."}
+		return nil, storageError{"the kind of interface must be a pointer to a struct."}
 	}
-
-	val := ptr.Elem()
-	if val.Kind() != refl.Struct{
-		return nil, storageError{"the kind of input interface but be a pointer to a struct."}
+	if ptr.Elem().Kind() != refl.Struct{
+		return nil, storageError{"the kind of interface must be a pointer to a struct."}
 	}
-
-	pointers := make([]any, val.NumField())
 	
-	if refl.TypeOf(val).Kind() != refl.Struct{
-		return nil, storageError{"the kind of input interface but be a struct and represent the specific database table columns."}
-	}
-
-    for i := 0; i < val.NumField(); i++ {
-        field := val.Field(i).Addr().Interface()
-        pointers[i] = &field
+	n := ptr.Elem().NumField()
+	pointers := make([]any, n)
+    for i := 0; i < n; i++ {
+        field := ptr.Elem().Field(i).Addr().Interface()
+        pointers[i] = field
     }
 
-    return pointers, nil
+	return pointers, nil
 }
 
 // Function that creates the table for specific struct type. 
@@ -101,7 +95,7 @@ func TouchTable(s any) error{
 			kind = "TEXT"
 		}
 
-		if columns[i] == "id"{
+		if columns[i] == "Id"{
 			fields = append(fields, fmt.Sprintf("%v %v PRIMARY KEY NOT NULL", columns[i], kind))
 		}else{
 			fields = append(fields, fmt.Sprintf("%v %v", columns[i], kind))
@@ -112,22 +106,6 @@ func TouchTable(s any) error{
 	_, err = db.Exec(query, values...)
 	return err
 }
-
-// Parametrized function, that performs the sqlite UPDATE query.
-// func Update[T any](id int64, s T) error{
-// 	table := getName(s) 
-	
-// 	columns, values, err := getBindings(s)
-// 	if err != nil{
-// 		return err
-// 	}
-// 	questionMarks := strings.Join(strings.Split(strings.Repeat("?", len(columns)), ""), ", ")
-
-// 	query := fmt.Sprintf("UPDATE %v (%v) VALUES (%v)", table, strings.Join(columns, ", "), questionMarks)
-
-// 	_, err = db.Query(query, values...)
-// 	return err
-// }
 
 // Parametrized function, that performs the sqlite INSERT query.
 func Insert[T any](s T) error{
@@ -140,8 +118,6 @@ func Insert[T any](s T) error{
 	questionMarks := strings.Join(strings.Split(strings.Repeat("?", len(columns)), ""), ", ")
 
 	query := fmt.Sprintf("INSERT INTO %v (%v) VALUES (%v)", table, strings.Join(columns, ", "), questionMarks)
-	fmt.Println(query)
-	fmt.Println(values...)
 
 	_, err = db.Exec(query, values...)
 	return err
@@ -152,17 +128,10 @@ func Select[T any](id int64) (T, error){
 	var s T
 
 	table := getName(s) 
-
-	val := refl.ValueOf(s)
-	if val.Kind() != refl.Struct{
-		return s, storageError{"the kind of interface must be a struct."}
+	pointers, err := getPointers(&s)
+	if err != nil{
+		return s, err
 	}
-
-	pointers := make([]any, val.NumField())
-    for i := 0; i < val.NumField(); i++ {
-        field := val.Field(i).Addr().Interface()
-        pointers[i] = &field
-    }
 
 	query := fmt.Sprintf("SELECT * FROM %v WHERE Id = ?", table)
 	rows, err := db.Query(query, id)
@@ -176,6 +145,40 @@ func Select[T any](id int64) (T, error){
 
 	err = rows.Scan(pointers...)
 	return s, err
+}
+
+// Parametrized function, that performs the sqlite UPDATE query.
+func Update[T any](id int64, s T) error{
+	table := getName(s) 
+	
+	columns, values, err := getBindings(s)
+	if err != nil{
+		return err
+	}
+	
+	update := ""
+	for i, column := range columns{
+		if i == 0{
+			update += fmt.Sprintf("%v = ?", column)
+		}else{
+			update += fmt.Sprintf(", %v = ?", column)
+		}
+	}
+	query := fmt.Sprintf("UPDATE %v SET %v WHERE Id=?", table, update)
+
+	values = append(values, id)
+	_, err = db.Exec(query, values...)
+	return err
+}
+
+func Delete[T any](id int64) error{
+	var s T
+	table := getName(s) 
+	
+	query := fmt.Sprintf("DELETE FROM %v WHERE Id = ?", table)
+
+	_, err := db.Exec(query, id)
+	return err
 }
 
 // Parametrized function, that performs the sqlite SELECT query for the whole table.

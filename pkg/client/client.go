@@ -2,9 +2,8 @@ package client
 
 import (
 	st "bot/pkg/storage"
-	ui "bot/pkg/ui"
-	"fmt"
-	"log"
+	sm "bot/pkg/syncmap"
+	"bot/pkg/ui"
 
 	tg "github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
@@ -20,19 +19,91 @@ type User struct{
 	Data string
 }
 
+// Data structures
+// During the runtime the state must remain similar to db tables. (We always update these maps and db at the same time.)
+var Users sm.SyncMap[int64, User]
+
+var bot *tg.Bot
+
+// Initialization
 func Load() error{
 	err := st.TouchTable(User{})
 	if err != nil{
 		return err
 	}
 
-	// err = st.Insert(User{100, "Gleb", "Gleb"})
-	// if err != nil{
-	// 	return err
-	// }
+	Users.Init()
+	users, err := st.SelectAll[User]()
+	if err != nil{
+		return err
+	}
+
+	for _, user := range users{
+		Users.Set(user.Id, user)
+	}
 
 	return nil
 }
+
+func SetBot(tgbot *tg.Bot){
+	bot = tgbot
+}
+
+// Utility functions
+
+func SendMessage(id int64, text string){
+	sendparams := &tg.SendMessageParams{
+		ChatID: tu.ID(id),
+		Text: text,
+		ParseMode: "HTML",
+	}
+
+	bot.SendMessage(sendparams)
+}
+
+func SendMessageWithMarkup(id int64, text string, menu *ui.Menu){
+	sendparams := &tg.SendMessageParams{
+		ChatID: tu.ID(id),
+		Text: text,
+		ReplyMarkup: menu.Build(),
+		ParseMode: "HTML",
+	}
+
+	bot.SendMessage(sendparams)
+}
+
+func EditMessageText(message *tg.Message, text string){
+	editparams := &tg.EditMessageTextParams{
+		ChatID:    tu.ID(message.Chat.ID),
+		MessageID: message.MessageID,
+		Text: text,
+		ParseMode: "HTML",
+	}
+
+	bot.EditMessageText(editparams)
+}
+
+func EditMessageMarkup(message *tg.Message, menu *ui.Menu){
+	editparams := &tg.EditMessageReplyMarkupParams{
+		ChatID:    tu.ID(message.Chat.ID),
+		MessageID: message.MessageID,
+		ReplyMarkup: menu.Build(),
+	}
+
+	bot.EditMessageReplyMarkup(editparams)
+}
+
+func DeleteMessage(message *tg.Message) {
+	deleteparams := &tg.DeleteMessageParams{
+		ChatID:    tu.ID(message.Chat.ID),
+		MessageID: message.MessageID,
+	}
+
+	bot.DeleteMessage(deleteparams)
+}
+
+
+// Base handlers + middleware
 
 func CommandHandler(bot *tg.Bot, message tg.Message){
 
@@ -41,39 +112,11 @@ func CommandHandler(bot *tg.Bot, message tg.Message){
 func MessageHandler(bot *tg.Bot, message tg.Message){
 	id := message.From.ID
 	
-	user := User{
-		id,
-		"JOHN DOE",
-		"VERY INTELEGENT AND SMART GUY",
-	}
-
-	err := st.Insert(user)
-	if err != nil{
-		log.Println(err)
-	}
-
-	user, err = st.Select[User](id)
-	if err != nil{
-		log.Println(err)
-	}else{
-		SendMessage(bot, fmt.Sprintf("%v", user), id)
-	}
+	SendMessageWithMarkup(id, "Hello World", ui.Menus["main"])
 }
 
-func QueryHandler(bot *tg.Bot, query tg.InlineQuery){
+func QueryHandler(bot *tg.Bot, query tg.CallbackQuery){
 
 }	
 
-func SendMessage(bot *tg.Bot, text string, id int64){
-	markup := ui.Menus["main"].Build()
-	bot.SendMessage(tu.Message(tu.ID(id), text).WithReplyMarkup(markup))
-}
 
-func DeleteMessage(bot *tg.Bot, message *tg.Message) {
-	deleteparams := &tg.DeleteMessageParams{
-		ChatID:    tu.ID(message.Chat.ID),
-		MessageID: message.MessageID,
-	}
-
-	bot.DeleteMessage(deleteparams)
-}
