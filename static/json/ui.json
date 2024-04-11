@@ -1,14 +1,21 @@
 {
-    "main": {
-        "name": "main",
+    "bar": {
+        "name": "bar",
         "rows": [
             [
                 {
-                    "label": "foo",
+                    "label": "1",
                     "data": "foo"
-                },
+                }
+            ]
+        ]
+    },
+    "foo": {
+        "name": "foo",
+        "rows": [
+            [
                 {
-                    "label": "bar",
+                    "label": "2",
                     "data": "bar"
                 }
             ]

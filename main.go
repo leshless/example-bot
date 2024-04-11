@@ -3,6 +3,7 @@ package main
 import (
 	cl "bot/pkg/client"
 	st "bot/pkg/storage"
+	"bot/pkg/text"
 	"bot/pkg/ui"
 	"sync"
 
@@ -70,7 +71,13 @@ func load(){
 	}
 	log.Println("UI data loaded sucessfuly.")
 
-	log.Println("Initializing database connection...")
+	err = text.Load()
+	if err != nil{
+		log.Fatal(err)
+	}
+	log.Println("Text data loaded sucessfuly.")
+
+	log.Println("Initializing DB connection...")
 	err = st.Init()
 	if err != nil{
 		log.Fatal(err)
@@ -123,11 +130,11 @@ func runBot(){
 		waitgroup.Done()
 	})
 
-	bothandler.HandleMessage(cl.MessageHandler, th.AnyMessage())
-	bothandler.HandleMessage(cl.CommandHandler, th.AnyCommand())
 	bothandler.HandleCallbackQuery(cl.QueryHandler, th.AnyCallbackQuery())
+	bothandler.HandleMessage(cl.CommandHandler, th.AnyCommand())
+	bothandler.HandleMessage(cl.MessageHandler, th.AnyMessage())
 
-	log.Print("Bot is active.")
+	log.Print("Bot is running.")
 	bothandler.Start()
 }
 
