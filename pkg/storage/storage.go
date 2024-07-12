@@ -10,7 +10,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// ПЕРЕПИСАТЬ ВСЕ НА ТРАНЗАКЦИЯХ!!
+// This library is sqlite ORM
 
 
 var db *sql.DB
