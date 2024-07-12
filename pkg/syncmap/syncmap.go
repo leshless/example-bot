@@ -6,6 +6,8 @@ import (
 	om "github.com/wk8/go-ordered-map"
 )
 
+// this library implements custom lock-free ordered map type (sync.Map is not very convinient to use)
+
 type SyncMap[K comparable, V any] struct {
 	data  *om.OrderedMap
 	mutex sync.Mutex
